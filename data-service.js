@@ -6,6 +6,23 @@
 //"empty" promise that invokes reject()
 
 
+const Sequelize = require('sequelize');
+
+var sequelize = new Sequelize("dfq90knjkss5kd", "bvbantskmnhbem", "a440c0a2028c777848b93eff4a7c55add674befc55b2bb3e3a4f926c719937b8", 
+{
+    host: "ec2-23-23-219-25.compute-1.amazonaws.com",
+    dialect: 'postgres',
+    port: 5432,
+    dialectOptions: {
+    ssl: {
+        require: true,
+        rejectUnauthorized: false
+    }
+    } 
+   });
+
+sequelize.authenticate().then(()=> console.log('Connection success.')).catch((err)=>console.log("Unable to connect to DB.", err));
+
 module.exports.initialize = function()
 {
     return new Promise(function (resolve, reject) {
