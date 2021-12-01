@@ -1,10 +1,10 @@
 /*********************************************************************************
-* BTI325 – Assignment 4
+* BTI325 – Assignment 5
 * I declare that this assignment is my own work in accordance with Seneca Academic Policy. No part 
 * of this assignment has been copied manually or electronically from any other source 
 * (including 3rd party web sites) or distributed to other students.
 * 
-* Name: Shehtab Masud Student ID: 119038206 Date: 11/15/2021
+* Name: Shehtab Masud Student ID: 119038206 Date: 11/30/2021
 *
 * Online (Heroku) Link: https://pure-mesa-97836.herokuapp.com/
 ********************************************************************************/
@@ -17,6 +17,8 @@ var express = require("express");
 var multer = require("multer");
 var bodyParser = require('body-parser');
 const { engine } = require('express-handlebars');
+const Handlebars = require('handlebars');
+const {allowInsecurePrototypeAccess} = require('@handlebars/allow-prototype-access')
 var app = express();
 var path = require("path");
 var HTTP_PORT = process.env.PORT || 8080;
@@ -47,7 +49,8 @@ app.engine('hbs',engine({
             }
         } 
 
-    }
+    },
+    handlebars: allowInsecurePrototypeAccess(Handlebars)
 }));
 app.set('view engine','.hbs');
 
@@ -88,9 +91,21 @@ app.post("/images/add",upload.single("imageFile"),function(req,res)
 
 app.post("/employees/add",function(req,res)
 {
-    data_service.addEmployee(req.body).then(function(){
+    data_service.addEmployee(req.body).then(function(data){
+        console.log(req.body);
         res.redirect("/employees");
+    }).catch(function(err){
+        console.log(err);
     });
+})
+
+app.post("/departments/add",function(req,res){
+    data_service.addDepartment(req.body).then(function(data){
+        console.log(req.body);
+        res.redirect("/departments");
+    }).catch(function(err){
+        console.log(err);
+    })
 })
 
 app.post("/employee/update", (req, res) => {
@@ -101,6 +116,15 @@ app.post("/employee/update", (req, res) => {
         res.render("employees",{message: err});
     });
 
+})
+
+app.post("/department/update",function(req,res){
+    data_service.updateDepartment(req.body).then(function()
+    {
+        res.redirect("/departments");
+    }).catch(function(err){
+        res.render("departments",{message:err});
+    })
 })
 /*----------------------------------------------------GET--------------------------------------------------------*/
 //HOME
@@ -139,21 +163,42 @@ app.get("/images",function(req,res){
 
 app.get("/departments",function(req,res){
     
-    var departments_data = [];
+
     data_service.getDepartments().then(function(data)
     {
-        departments_data = data;
-        res.render("departments",{departments:departments_data});
+        if(data.length > 0)
+        {
+            res.render("departments",{departments:data});
+        }
+            
+        else
+        {
+            res.render("departments",{message: "no results"});
+        }
+
     }).catch(function(err){
         res.render("departments",{message: "no results"});
     })
 })
 
+//               ||
+// All Employees VV
+//
+
 app.get("/employees/add",function(req,res)
 {
-    //let addemployeepath = path.join(__dirname + "/views/addEmployee.html");
-    //res.sendFile(addemployeepath);
-    res.render("addEmployee");
+    data_service.getDepartments().then(function(data){
+        res.render("addEmployee",{departments: data});
+    }).catch(function(err){
+        console.log(err);
+        res.render("addEmployee", {departments: []});
+    })
+        
+
+})
+
+app.get("/departments/add",function(req,res){
+    res.render("addDepartment");
 })
 
 app.get("/employees",function(req,res)
@@ -161,7 +206,10 @@ app.get("/employees",function(req,res)
     if(req.query.status)
     {
         data_service.getEmployeesByStatus(req.query.status).then(function(data){
-            res.render("employees",{employees:data});
+            if(data.length > 0)
+                res.render("employees",{employees:data});
+            else
+                res.render("employees",{message: "no results"});
         }).catch(function(err){
             res.render("employees",{message: "no results"});
         })
@@ -170,7 +218,10 @@ app.get("/employees",function(req,res)
     else if(req.query.department)
     {
         data_service.getEmployeesByDepartment(req.query.department).then(function(data){
-            res.render("employees",{employees:data});
+            if(data.length > 0)
+                res.render("employees",{employees:data});
+            else
+                res.render("employees",{message: "no results"});
         }).catch(function(err){
             res.render("employees",{message: "no results"});
         })
@@ -179,37 +230,88 @@ app.get("/employees",function(req,res)
     else if(req.query.manager)
     {
         data_service.getEmployeesByManager(req.query.manager).then(function(data){
-            res.render("employees",{employees:data});
+            if(data.length > 0)
+                res.render("employees",{employees:data});
+            else
+                res.render("employees",{message: "no results"});
         }).catch(function(err){
             res.render("employees",{message: "no results"});
         })
     }
 
     else{
-        var employee_data = [];
+
         data_service.getAllEmployees().then(function(data)
         {
-            employee_data = data;
-            res.render("employees",{employees:employee_data});
-            // res.header("Content-Type",'application/json');
-            // res.json(employee_data);
+            if(data.length > 0)
+            {
+                res.render("employees",{employees:data});
+            }
+            else
+            {
+                res.render("employees",{message: "no results"});
+            }
         }).catch(function(err){
             res.render("employees",{message: "no results"});
-            // res.header("Content-Type",'application/json');
-            // res.json({message:err});
+
         })
     }
 
 
 })
 
-app.get("/employee/:empnum",function(req,res)
-{
-    data_service.getEmployeeByNum(req.params.empnum).then(function(data){
-        res.render("employee",{employee:data});
+app.get("/employee/:empNum", (req, res) => {
+
+    //console.log("------------------------------------------")
+    // initialize an empty object to store the values
+    let viewData = {employee: null,department:null};
+
+    data_service.getEmployeeByNum(req.params.empNum).then((data) => {
+        if (data) {
+            console.log(data);
+            viewData.employee = data; //store employee data in the "viewData" object as "employee"
+        } else {
+            viewData.employee = null; // set employee to null if none were returned
+        }
+    }).catch((err) => {
+        console.log(err);
+        viewData.employee = null; // set employee to null if there was an error 
+    }).then(data_service.getDepartments)
+        .then((data) => {
+            viewData.departments = data; // store department data in the "viewData" object as "departments"
+            // loop through viewData.departments and once we have found the departmentId that matches
+            // the employee's "department" value, add a "selected" property to the matching 
+            // viewData.departments object
+            for (let i = 0; i < viewData.departments.length; i++) {
+                if (viewData.departments[i].departmentId == viewData.employee.department) {
+                    viewData.departments[i].selected = true;
+                }
+            }
+        }).catch(() => {
+            viewData.departments = []; // set departments to empty if there was an error
+        }).then(() => {
+            if (viewData.employee == null) { // if no employee - return an error
+                res.status(404).send("Employee Not Found");
+            } else {
+                //console.log(viewData);
+                res.render("employee", { viewData: viewData });
+                  // render the "employee" view
+            }
+        }).catch((err)=>{
+            res.status(500).send("Unable to Update Employee");
+           });;
+   })
+app.get("/department/:departmentId",function(req,res){
+
+    data_service.getDepartmentById(req.params.departmentId).then(function(data){
+        if(data.length() > 0)
+            res.render("department",{department:data});
+        else
+            res.status(404).send("Department Not Found");
     }).catch(function(err){
-        res.render("employee",{message: "no results"});
+        res.status(404).send("Department Not Found");
     })
+
 })
 
 
@@ -227,6 +329,16 @@ app.get("/managers",function(req,res){
         res.json({message:err});
     })
 })
+
+app.get("/employee/delete/:empNum", (req, res)=>{
+    data_service.deleteEmployeeByNum(req.params.empNum)
+        .then((data)=>{
+            res.redirect("/employees");
+        })
+        .catch((err)=>{
+            res.status(500).send("Unable to Remove Employee / Employee not found")
+        })
+});
 
 
 app.get("*",function(req,res){
